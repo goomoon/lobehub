@@ -62,7 +62,26 @@ jobs:
           ls -lh apps/desktop/release/
           file apps/desktop/release/*.AppImage || true
           dpkg-deb -I apps/desktop/release/*.deb | head -20
-
+          
+      # ubuntu runner 自带 rclone，无需安装
+      - name: Upload to Aliyun OSS
+        env:
+          RCLONE_CONFIG_OSS_TYPE: s3
+          RCLONE_CONFIG_OSS_PROVIDER: Alibaba
+          RCLONE_CONFIG_OSS_ACCESS_KEY_ID: ${{ secrets.OSS_AK }}
+          RCLONE_CONFIG_OSS_SECRET_ACCESS_KEY: ${{ secrets.OSS_SK }}
+          RCLONE_CONFIG_OSS_ENDPOINT: ${{ vars.OSS_ENDPOINT }}
+          RCLONE_CONFIG_OSS_REGION: cn-hangzhou
+          RCLONE_CONFIG_OSS_ACL: private
+        run: |
+          DEST="oss:${{ vars.OSS_BUCKET }}/lobehub-arm64/${{ inputs.version || format('build-{0}', github.run_number) }}"
+          rclone copy apps/desktop/release "$DEST" \
+            --include "*.deb" --include "*.AppImage" --include "SHA256SUMS" \
+            --s3-no-check-bucket \
+            --transfers 4 --checksum \
+            --stats-one-line --stats 15s --progress
+          echo "📦 下载目录: https://${{ vars.OSS_BUCKET }}.oss-cn-hangzhou.aliyuncs.com/lobehub-arm64/"
+          
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
