@@ -1,0 +1,81 @@
+name: Desktop Linux ARM64 Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '桌面端版本号（留空自动生成，如 1.2.3）'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'desk-arm64-v*'          # 用自定义 tag 前缀，避免 upstream tag 触发
+
+concurrency:
+  group: linux-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write                # 需要发 Release 时用
+
+env:
+  NODE_VERSION: 24.11.1
+
+jobs:
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm    # ★ 关键：GitHub 官方 arm64 托管 runner
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # 构建很吃磁盘，空间不够时再打开（arm64 镜像上先确认该 action 可用）
+      # - uses: jlumbroso/free-disk-space@main
+      #   with: { tool-cache: true, android: true, dotnet: true, haskell: true, large-packages: true, docker-images: true }
+
+      - name: Setup build environment
+        uses: ./.github/actions/desktop-build-setup
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          # 不传 cloud-token → 自动走 OSS 构建，无需任何 secret
+
+      - name: Set desktop version
+        run: |
+          VERSION="${{ inputs.version }}"
+          [ -z "$VERSION" ] && VERSION="0.1.0-arm64.${GITHUB_RUN_NUMBER}"
+          npm run workflow:set-desktop-version "$VERSION" stable
+
+      - name: Build deb + AppImage (arm64)
+        run: npm run desktop:package:app
+        env:
+          UPDATE_CHANNEL: stable
+          # ★ 一定要换掉官方身份，否则和官方客户端抢 appId / 协议 / 数据目录
+          DESKTOP_APP_ID: com.yourname.lobehub-desktop
+          DESKTOP_PRODUCT_NAME: LobeHub ARM
+          DESKTOP_EXECUTABLE_NAME: lobehub-arm
+          DESKTOP_PROTOCOL_SCHEME: lobehubarm
+          APP_URL: http://localhost:3015
+          DATABASE_URL: 'postgresql://postgres@localhost:5432/postgres'
+          KEY_VAULTS_SECRET: 'oLXWIiR/AKF+rWaqy9lHkrYgzpATbW3CtJp3UfkVgpE='
+
+      - name: Verify artifacts
+        run: |
+          ls -lh apps/desktop/release/
+          file apps/desktop/release/*.AppImage || true
+          dpkg-deb -I apps/desktop/release/*.deb | head -20
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: lobehub-linux-arm64
+          path: |
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.AppImage
+          retention-days: 7
+
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.AppImage
