@@ -387,7 +387,7 @@ const config = {
     category: 'Utility',
     icon: 'build/icon.png',
     maintainer: 'electronjs.org',
-    target: ['AppImage', 'snap', 'deb', 'rpm', 'tar.gz'],
+    target: ['AppImage', 'deb'],
   },
   mac: {
     binaries: [
