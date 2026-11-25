@@ -44,6 +44,20 @@ jobs:
           [ -z "$VERSION" ] && VERSION="0.1.0-arm64.${GITHUB_RUN_NUMBER}"
           npm run workflow:set-desktop-version "$VERSION" stable
 
+      # 先安装rclone，避免编译成功，也无法成功下载
+      - name: Install rclone (static binary)
+        run: |
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            aarch64|arm64) RARCH=arm64 ;;
+            x86_64)        RARCH=amd64 ;;
+            *) echo "unsupported arch: $ARCH"; exit 1 ;;
+          esac
+          curl -fsSL "https://downloads.rclone.org/rclone-current-linux-${RARCH}.zip" -o /tmp/rclone.zip
+          sudo unzip -oq /tmp/rclone.zip -d /usr/local/bin --junk-paths '*/rclone'
+          sudo chmod +x /usr/local/bin/rclone
+          rclone version | head -3
+          
       - name: Build deb + AppImage (arm64)
         run: npm run desktop:package:app
         env:
@@ -61,9 +75,8 @@ jobs:
         run: |
           ls -lh apps/desktop/release/
           file apps/desktop/release/*.AppImage || true
-          dpkg-deb -I apps/desktop/release/*.deb | head -20
-          
-      # ubuntu runner 自带 rclone，无需安装
+          dpkg-deb -I apps/desktop/release/*.deb | head -20      
+      
       - name: Upload to Aliyun OSS
         env:
           RCLONE_CONFIG_OSS_TYPE: s3
