@@ -45,7 +45,7 @@ jobs:
           npm run workflow:set-desktop-version "$VERSION" stable
 
       # 先安装rclone，避免编译成功，也无法成功下载
-      - name: Install rclone (static binary)
+      - name: Install rclone
         run: |
           ARCH=$(uname -m)
           case "$ARCH" in
@@ -54,8 +54,10 @@ jobs:
             *) echo "unsupported arch: $ARCH"; exit 1 ;;
           esac
           curl -fsSL "https://downloads.rclone.org/rclone-current-linux-${RARCH}.zip" -o /tmp/rclone.zip
-          sudo unzip -oq /tmp/rclone.zip -d /usr/local/bin --junk-paths '*/rclone'
-          sudo chmod +x /usr/local/bin/rclone
+          rm -rf /tmp/rclone-extract && mkdir -p /tmp/rclone-extract
+          unzip -oq /tmp/rclone.zip -d /tmp/rclone-extract
+          # rclone-*-linux-<arch>/rclone，用 install 直接落到 PATH
+          sudo install -m 755 /tmp/rclone-extract/rclone-*/rclone /usr/local/bin/rclone
           rclone version | head -3
           
       - name: Build deb + AppImage (arm64)
